@@ -294,12 +294,14 @@ on addAction(actionName, pauseSec)
 end addAction
 
 -- ---------------------------------------------------------------------
--- reorderUp(actionName, times, pauseSec)
+-- reorderUp(actionName, moveCount, pauseSec)
 -- BEST-EFFORT reorder. Tries to select the named action's row, then
--- presses Cmd+Ctrl+Up `times` times. Silently tolerates failure because
--- Shortcuts frequently ignores this. Swap the key combo below if needed.
+-- presses Cmd+Ctrl+Up `moveCount` times. Silently tolerates failure
+-- because Shortcuts frequently ignores this. Swap the key combo below
+-- if needed. (NOTE: don't rename moveCount to "times" — that word is
+-- part of AppleScript's `repeat n times` syntax and won't compile.)
 -- ---------------------------------------------------------------------
-on reorderUp(actionName, times, pauseSec)
+on reorderUp(actionName, moveCount, pauseSec)
 	tell application "System Events"
 		tell process "Shortcuts"
 			set frontmost to true
@@ -310,7 +312,7 @@ on reorderUp(actionName, times, pauseSec)
 				click targetRow
 				delay pauseSec
 			end try
-			repeat times times
+			repeat moveCount times
 				try
 					-- Cmd+Ctrl+Up : honoured by some builds; harmless otherwise.
 					key code 126 using {command down, control down}
