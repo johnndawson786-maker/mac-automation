@@ -105,6 +105,14 @@ tell application "Contacts"
 	save
 end tell
 
+-- Save the group name to a hand-off file on the Desktop so downstream
+-- automations (e.g. MassMessageSetup.applescript) can read which group
+-- was just created. Overwrites any previous value.
+try
+	set handoffPath to (POSIX path of (path to desktop)) & "contact_group_name.txt"
+	do shell script "printf '%s' " & quoted form of groupName & " > " & quoted form of handoffPath
+end try
+
 
 -- =====================================================================
 -- STEP 5 — Loop through every line, parse it, and create contacts
