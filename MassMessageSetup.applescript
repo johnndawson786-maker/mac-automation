@@ -411,7 +411,12 @@ on deepFind(targetText)
 			repeat with w in windows
 				set elems to {}
 				try
-					set elems to entire contents of w
+					-- HARD TIMEOUT: with the action library open this crawl
+					-- can hang for minutes; give up on this window after 25s
+					-- and fall through to the failure dialog instead.
+					with timeout of 25 seconds
+						set elems to entire contents of w
+					end timeout
 				end try
 				repeat with e in elems
 					try

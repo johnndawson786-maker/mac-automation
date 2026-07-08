@@ -92,11 +92,38 @@ That's the whole thing — one run, no manual steps, no Shortcuts app.
 
 ---
 
-## ⚠️ Before a real run
+## ☎️ Phone number format (READ — this is what caused "Not Delivered")
+
+macOS guesses a country code for any number saved **without** one, and it
+guessed wrong before (Indian numbers became unreachable `+44` UK numbers). The
+scripts now protect you:
+
+- A number that **already starts with `+`** is saved **exactly as written**.
+  → Mix countries freely: `+9185…` (India), `+1415…` (US), etc.
+- A **bare** number (no `+`) gets the **`defaultCountryCode`** prepended
+  automatically (set to `+91` at the top of `ContactImporter.applescript` and
+  `MasterAutomation.applescript`).
+
+**So for a mixed India + US list, write US numbers with their `+1` prefix:**
+
+```
+8585876735            ← bare → becomes +918585876735 (default +91)
++918219522292         ← explicit India
++14155551234          ← explicit US
+```
+
+If most of your list is US, change `defaultCountryCode` to `+1` and let the US
+numbers be bare instead. Either way, **anything with a `+` is never touched.**
+
+Re-importing also now **deletes the old group's contact cards**, so stale
+wrongly-formatted numbers from earlier runs don't linger in All Contacts.
+
+## ⚠️ Also before a real run
 - **Test first:** put ONLY your own number in `contacts.csv` and one line in
   `messages.txt`, run it, confirm you receive it.
-- **Country codes:** numbers without `+` use your region default. If sends
-  fail, use full international format (e.g. `+18585876735`).
+- **Non-iMessage (Android/SMS) numbers** can only be sent from a Mac if your
+  **iPhone is paired with Text Message Forwarding ON** (iPhone → Settings →
+  Messages → Text Message Forwarding). A Mac alone cannot send plain SMS.
 - **Don't spam:** only message people expecting to hear from you — Apple and
   carriers block accounts that send unsolicited bulk messages.
 

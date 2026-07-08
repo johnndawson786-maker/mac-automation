@@ -49,6 +49,14 @@
 set groupPrefix to "Automation_List_" -- text placed before the date in the group name
 set csvDelimiter to ","               -- change to ";" or tab, etc. if your file uses another delimiter
 set defaultFirstName to "Imported"    -- first name used for phone-only lines
+-- COUNTRY CODE SAFETY -------------------------------------------------
+-- Numbers saved WITHOUT a "+<countrycode>" get guessed by macOS (that's
+-- how Indian numbers once became unreachable +44 UK numbers). Rules:
+--   • Numbers in the CSV that already start with "+" are kept EXACTLY
+--     as written  →  mix +91… (India), +1… (US), etc. freely.
+--   • Bare numbers (no "+") get defaultCountryCode prepended so nothing
+--     ambiguous is ever saved.
+set defaultCountryCode to "+91"       -- applied only to numbers lacking a "+" prefix
 -- The date format is controlled by the formatDate() handler near the
 -- bottom of this file. Edit that handler to change YYYY-MM-DD to
 -- something else (e.g. MM-DD-YYYY).
@@ -94,9 +102,19 @@ set fileLines to paragraphs of fileText
 -- =====================================================================
 tell application "Contacts"
 	activate
-	-- Delete any pre-existing groups that share our target name.
+	-- Delete any pre-existing groups that share our target name — AND the
+	-- person cards inside them, so stale/wrongly-formatted contacts from
+	-- earlier runs don't pile up in All Contacts.
 	set duplicateGroups to (every group whose name is groupName)
 	repeat with g in duplicateGroups
+		try
+			set oldPeople to (people of g)
+			repeat with p in oldPeople
+				try
+					delete p
+				end try
+			end repeat
+		end try
 		delete g
 	end repeat
 	save
@@ -158,6 +176,13 @@ repeat with rawLine in fileLines
 
 		-- Clean the phone number: remove spaces so "+1 234 567" -> "+1234567".
 		set cleanPhone to my stripSpaces(rawPhone)
+
+		-- COUNTRY CODE SAFETY: never save a bare number. If it has no "+"
+		-- prefix, prepend the configured default country code so macOS
+		-- can't mis-guess the region (e.g. turning +91 numbers into +44).
+		if cleanPhone is not "" and cleanPhone does not start with "+" then
+			set cleanPhone to defaultCountryCode & (my keepDigits(cleanPhone))
+		end if
 
 		-- Validate: a usable number must contain at least one digit.
 		if my hasDigit(cleanPhone) then

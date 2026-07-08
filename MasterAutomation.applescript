@@ -34,6 +34,11 @@ set messagesFileName to "messages.txt"   -- input message list (=== separated)
 set groupPrefix to "Automation_List_"    -- Contacts group name prefix
 set csvDelimiter to ","                   -- field separator in contacts.csv
 set defaultFirstName to "Imported"        -- first name for number-only lines
+-- COUNTRY CODE SAFETY: numbers saved without "+<countrycode>" get their
+-- region guessed by macOS (Indian numbers once became unreachable +44).
+-- Numbers already starting with "+" are kept EXACTLY as written (mix
+-- +91…, +1…, etc.); bare numbers get this prefix added:
+set defaultCountryCode to "+91"
 set delayBetween to 2                     -- seconds between each send
 set useIMessageOnly to false              -- true = iMessage only (no SMS fallback)
 set askBeforeSending to true              -- confirm dialog before blasting
@@ -82,8 +87,17 @@ set lineNumber to 0
 
 tell application "Contacts"
 	activate
-	-- Delete any existing group with our name, then create a fresh one.
+	-- Delete any existing group with our name — including the person cards
+	-- inside it, so stale/wrongly-formatted contacts from earlier runs
+	-- don't pile up in All Contacts — then create a fresh one.
 	repeat with g in (every group whose name is groupName)
+		try
+			repeat with p in (people of g)
+				try
+					delete p
+				end try
+			end repeat
+		end try
 		delete g
 	end repeat
 	save
@@ -113,6 +127,10 @@ tell application "Contacts"
 			end if
 
 			set cleanNumber to my cleanPhone(rawPhone)
+			-- COUNTRY CODE SAFETY: never save a bare number (see CONFIG).
+			if cleanNumber is not "" and cleanNumber does not start with "+" then
+				set cleanNumber to defaultCountryCode & cleanNumber
+			end if
 			if cleanNumber is "" then
 				-- No usable digits → record as a failed line.
 				set end of importFailedLines to lineNumber
