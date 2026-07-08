@@ -91,23 +91,34 @@ end try
 try
 	my addAction("Find Contacts", uiDelay)
 
-	-- Click the "Add Filter" button that lives inside the action.
+	-- Click the "Add Filter" button, then open the "Choose" value picker
+	-- and type the group name into its search field.
 	tell application "System Events"
 		tell process "Shortcuts"
 			try
+				my ensureShortcutsFocus()
 				click (first button whose name is "Add Filter")
 				delay uiDelay
-				-- A "Group" filter row appears with a value dropdown.
-				-- Type the group name into it and confirm. Typing into the
-				-- focused value field then Return usually selects/commits it.
-				keystroke groupName
+				-- The filter row reads:  Group  is  Choose
+				-- Click the "Choose" element to open the group/contact picker.
+				try
+					click (first UI element of window 1 whose name is "Choose")
+				on error
+					-- Fallback: some builds expose it as a pop-up/menu button.
+					click (first pop up button of window 1)
+				end try
 				delay uiDelay
+				-- The picker has a search field; type the group name to filter
+				-- the list, then Return selects the highlighted match.
+				my ensureShortcutsFocus()
+				keystroke groupName
+				delay (uiDelay * 2) -- let the list filter
 				keystroke return
 				delay uiDelay
 			on error innerMsg
 				-- Non-fatal: the button name or layout may differ by version.
 				display dialog "Heads up: couldn't auto-set the Contacts filter to \"" & groupName & "\". " & ¬
-					"Add it by hand in the Find Contacts action after the script finishes." & return & return & ¬
+					"Add it by hand: Find Contacts → Add Filter → Group is → Choose → pick the group." & return & return & ¬
 					"(" & innerMsg & ")" buttons {"Continue"} default button "Continue" with icon caution
 			end try
 		end tell
@@ -139,6 +150,7 @@ try
 	tell application "System Events"
 		tell process "Shortcuts"
 			delay uiDelay
+			my ensureShortcutsFocus()
 			keystroke placeholderText
 			delay uiDelay
 		end tell
@@ -171,6 +183,7 @@ try
 		tell process "Shortcuts"
 			delay uiDelay
 			try
+				my ensureShortcutsFocus()
 				keystroke "a" using command down
 				keystroke "2"
 				keystroke return
@@ -223,26 +236,71 @@ end try
 
 
 -- =====================================================================
---  STEP 8 — Save the shortcut with the dated name
+--  STEP 7b — BEST EFFORT: bind Recipients to the "Repeat Item" variable
+--  Clicks the Recipients field of Send Message and types "Repeat Item".
+--  On builds where typing surfaces the magic-variable suggestion, Return
+--  selects it. On builds where typing only searches contacts, this does
+--  nothing harmful — VERIFY the pill reads "Repeat Item" (purple)
+--  afterwards, and set it by hand if it doesn't.
 -- =====================================================================
 try
 	tell application "System Events"
 		tell process "Shortcuts"
-			set frontmost to true
-			delay uiDelay
-			keystroke "s" using command down   -- Cmd+S
-			delay longDelay
-			-- If a name/save sheet appears, type the name and confirm.
+			my ensureShortcutsFocus()
 			try
-				keystroke "a" using command down -- select any pre-filled name
-				keystroke shortcutName
+				click (first UI element of window 1 whose name contains "Recipients")
 				delay uiDelay
+				my ensureShortcutsFocus()
+				keystroke "Repeat Item"
+				delay (uiDelay * 2)
 				keystroke return
+				delay uiDelay
+				key code 53 -- Escape: close any leftover contact-picker popover
+				delay uiDelay
+			on error innerMsg
+				display dialog "Couldn't auto-bind Recipients. Set it by hand: click the " & ¬
+					"Recipients pill in Send Message, type \"Repeat Item\" and pick the purple " & ¬
+					"Repeat Item variable (NOT a person)." & return & return & "(" & innerMsg & ")" ¬
+					buttons {"Continue"} default button "Continue" with icon caution
 			end try
 		end tell
 	end tell
+end try
+
+
+-- =====================================================================
+--  STEP 8 — Name the shortcut (SAFE method — no blind typing)
+--
+--  ⚠️ Lesson learned: an earlier version pressed Cmd+A and typed the
+--  name after Cmd+S. When focus fell back to Script Editor, that
+--  keystroke sequence overwrote the script's own source file. So now:
+--    • We NEVER type unless we have verified, via accessibility, that
+--      a Shortcuts rename field is focused.
+--    • Renaming is done by setting the title text field's value
+--      directly (no keystrokes at all) when possible.
+--  Shortcuts auto-saves continuously, so no Cmd+S is needed at all.
+-- =====================================================================
+try
+	tell application "System Events"
+		tell process "Shortcuts"
+			my ensureShortcutsFocus()
+			set renamed to false
+			-- Attempt 1: set the editor window's title text field directly.
+			try
+				set value of (first text field of window 1) to shortcutName
+				set renamed to true
+			end try
+			delay uiDelay
+		end tell
+	end tell
+	if not renamed then
+		display dialog "Couldn't rename the shortcut automatically. In Shortcuts, " & ¬
+			"click the title at the top of the editor window and name it:" & return & return & ¬
+			"    " & shortcutName ¬
+			buttons {"OK"} default button "OK" with icon caution
+	end if
 on error errMsg
-	my failStep("Step 8 – saving the shortcut", errMsg)
+	my failStep("Step 8 – naming the shortcut", errMsg)
 	return
 end try
 
@@ -279,6 +337,7 @@ on addAction(actionName, pauseSec)
 		tell process "Shortcuts"
 			set frontmost to true
 			delay pauseSec
+			my ensureShortcutsFocus() -- refuse to type if Shortcuts isn't frontmost
 			keystroke "f" using command down   -- focus the action search field
 			delay pauseSec
 			-- Clear anything already in the field, then type our query.
@@ -314,6 +373,7 @@ on reorderUp(actionName, moveCount, pauseSec)
 			end try
 			repeat moveCount times
 				try
+					my ensureShortcutsFocus()
 					-- Cmd+Ctrl+Up : honoured by some builds; harmless otherwise.
 					key code 126 using {command down, control down}
 				end try
@@ -322,6 +382,29 @@ on reorderUp(actionName, moveCount, pauseSec)
 		end tell
 	end tell
 end reorderUp
+
+-- ---------------------------------------------------------------------
+-- ensureShortcutsFocus()
+-- SAFETY GUARD: raises an error unless Shortcuts is genuinely the
+-- frontmost app. Every keystroke in this script goes to whichever app
+-- has focus — this guard is what prevents stray typing from landing in
+-- Script Editor (which once overwrote this very script's source file).
+-- Never remove it.
+-- ---------------------------------------------------------------------
+on ensureShortcutsFocus()
+	tell application "System Events"
+		set frontApp to name of first process whose frontmost is true
+		if frontApp is not "Shortcuts" then
+			tell process "Shortcuts" to set frontmost to true
+			delay 0.5
+			set frontApp to name of first process whose frontmost is true
+			if frontApp is not "Shortcuts" then
+				error "Shortcuts lost focus (frontmost app is \"" & frontApp & ¬
+					"\"). Aborting this step so keystrokes don't land in the wrong app."
+			end if
+		end if
+	end tell
+end ensureShortcutsFocus
 
 -- ---------------------------------------------------------------------
 -- resolveGroupName(fileName, dateStr)
