@@ -139,6 +139,9 @@ set successCount to 0        -- how many contacts were imported OK
 set failedLineNumbers to {}  -- line numbers we could not import
 set errorLog to ""           -- human-readable log of what went wrong
 set lineNumber to 0          -- 1-based counter for reporting
+set batchSize to 50          -- commit to Contacts every N people (avoids the
+--                              "Connection is invalid" error on big lists)
+set sinceLastSave to 0       -- counter toward the next batch save
 
 repeat with rawLine in fileLines
 	set lineNumber to lineNumber + 1
@@ -204,6 +207,19 @@ repeat with rawLine in fileLines
 			end tell
 
 			set successCount to successCount + 1
+			set sinceLastSave to sinceLastSave + 1
+
+			-- BATCH SAVE: commit every `batchSize` people so a big import
+			-- doesn't pile up one giant transaction (which triggers the
+			-- "Connection is invalid" error). After saving, re-fetch the
+			-- group by name so our reference can't go stale.
+			if sinceLastSave ≥ batchSize then
+				tell application "Contacts"
+					save
+					set newGroup to (first group whose name is groupName)
+				end tell
+				set sinceLastSave to 0
+			end if
 		else
 			-- No digits found: record the failure and keep going.
 			set end of failedLineNumbers to lineNumber

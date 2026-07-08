@@ -104,6 +104,9 @@ tell application "Contacts"
 	set theGroup to (make new group with properties {name:groupName})
 	save
 
+	set batchSize to 50    -- commit every N people (avoids "Connection is invalid")
+	set sinceLastSave to 0
+
 	repeat with rawLine in contactLines
 		set lineNumber to lineNumber + 1
 		set thisLine to my trimWhitespace(rawLine as string)
@@ -148,6 +151,14 @@ tell application "Contacts"
 				make new phone at end of phones of newPerson with properties {label:"mobile", value:cleanNumber}
 				add newPerson to theGroup
 				set importedCount to importedCount + 1
+				set sinceLastSave to sinceLastSave + 1
+				-- BATCH SAVE every `batchSize` people; re-fetch the group so
+				-- the reference can't go stale mid-import.
+				if sinceLastSave ≥ batchSize then
+					save
+					set theGroup to (first group whose name is groupName)
+					set sinceLastSave to 0
+				end if
 			end if
 		end if
 	end repeat
