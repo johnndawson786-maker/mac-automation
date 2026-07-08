@@ -233,37 +233,39 @@ end try
 
 
 -- =====================================================================
---  STEP 7b — Set the Recipient via the picker popover (deep clicks)
---  Click path (as seen in the real UI):
---     Recipients pill → sidebar: our group → first "Imported…" contact
---     → its "mobile <number>" row → Escape to close.
---  NOTE: this pins ONE fixed contact as the recipient of the Shortcut.
---  The looped per-contact sending is done by MassMessageSender / the
---  master pipeline; the Shortcut is a scaffold you can rewire to the
---  Repeat Item variable later if you want the loop inside Shortcuts.
+--  STEP 7b — Bind Recipients to the "Repeat Item" loop variable via the
+--  CONTEXT MENU (the menu you get when you Control-click the Recipients
+--  pill: Select Variable / Ask Each Time / … / Repeat Item / Clear).
+--  Programmatically, Control-click = the accessibility action
+--  "AXShowMenu" on the element; the entries are ordinary menu items,
+--  which are far more reliable to click than the contact picker.
+--  Result: each loop pass sends to the CURRENT contact — the correct
+--  wiring for send-to-everyone-one-at-a-time.
 -- =====================================================================
 try
 	my ensureShortcutsFocus()
-	my deepClick("Recipients", uiDelay)
+	set recipElem to my deepFind("Recipients")
+	tell application "System Events"
+		perform action "AXShowMenu" of recipElem -- open the Control-click menu
+	end tell
 	delay uiDelay
-	-- Sidebar: pick our group (full name, then truncated-label fallback).
-	try
-		my deepClick(groupName, uiDelay)
-	on error
-		my deepClick("Automation_List", uiDelay)
-	end try
-	delay uiDelay
-	-- First imported contact ("Imported XXXX"), then its mobile number row.
-	my deepClick("Imported", uiDelay)
-	delay uiDelay
-	my deepClick("mobile", uiDelay)
-	delay uiDelay
-	tell application "System Events" to key code 53 -- Escape: close the picker popover
+	-- Preferred: the menu attaches directly to the element.
+	set pickedItem to false
+	tell application "System Events"
+		tell process "Shortcuts"
+			try
+				click menu item "Repeat Item" of menu 1 of recipElem
+				set pickedItem to true
+			end try
+		end tell
+	end tell
+	-- Fallback: hunt the open menu anywhere in the window tree.
+	if not pickedItem then my deepClick("Repeat Item", uiDelay)
 	delay uiDelay
 on error innerMsg
-	display dialog "Couldn't auto-set the Recipient. Set it by hand: click the " & ¬
-		"Recipients pill in Send Message, pick your Automation_List group, click the " & ¬
-		"contact, then click its mobile number." & return & return & "(" & innerMsg & ")" ¬
+	display dialog "Couldn't auto-bind Recipients to Repeat Item. Do it by hand: " & ¬
+		"Control-click the Recipients pill in Send Message and choose \"Repeat Item\" " & ¬
+		"from the menu." & return & return & "(" & innerMsg & ")" ¬
 		buttons {"Continue"} default button "Continue" with icon caution
 end try
 
