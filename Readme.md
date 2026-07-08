@@ -2,7 +2,8 @@
 
 Pure AppleScript. Drop recipient files into a folder, run one script, and it
 imports everyone into a dated Contacts group and messages them via the Messages
-app. **No manual file picking, no Shortcuts app.**
+app. **No manual file picking.** (Prefer a reusable Shortcut? There's an
+optional path for that too — see "Build a Shortcut instead" below.)
 
 ## The `recipients/` folder is your inbox
 
@@ -32,6 +33,31 @@ Each line in a file can be:
 | `ContactImporter.applescript` | Auto-reads **every file** in `recipients/`, builds the Contacts group `Automation_List_<today>`, writes the group name to `~/Desktop/contact_group_name.txt`, then archives the files it read into `recipients/processed/` with a fresh run-log. |
 | `MassMessageSender.applescript` | Reads that group (via the handoff file — no guessing) and sends your message to every member, one at a time, through Messages. |
 | `MasterPipeline.applescript` | One click: runs the importer, then the sender. |
+| `MassMessageSetup.applescript` | *(Optional.)* Builds a reusable **Shortcut** in the Shortcuts app that loops the group and sends the message — see below. |
+
+## Optional: build a Shortcut instead
+
+If you'd rather have a reusable Shortcut in the Shortcuts app than run
+`MassMessageSender` each time, run `MassMessageSetup.applescript` after importing.
+It does **not** poke the Shortcuts UI (the old approach that kept failing to
+create anything). Instead it:
+
+1. Reads the members of the `Automation_List_<today>` group and collects their
+   mobile numbers.
+2. Writes a proper shortcut definition, **signs it** with Apple's built-in
+   `shortcuts` command-line tool, and opens the signed `.shortcut` so Shortcuts
+   imports it in one click.
+
+The resulting shortcut contains a List of the recipients, a Repeat that walks
+it, and a Send Message inside the loop. Because it's a real, signed shortcut
+file, creation is reliable — there's no UI automation to break.
+
+Notes:
+- **You must be online** the first time — Apple signs the file.
+- The recipient numbers are baked in when the shortcut is built. Import new
+  contacts, then re-run this script to refresh the list.
+- Grant the app you run from **Contacts** access (System Settings → Privacy &
+  Security → Contacts).
 
 ## How each run works
 
