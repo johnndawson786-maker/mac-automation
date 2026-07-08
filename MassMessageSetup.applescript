@@ -248,8 +248,8 @@ try
 	tell application "System Events"
 		perform action "AXShowMenu" of recipElem -- open the Control-click menu
 	end tell
-	delay uiDelay
-	-- Preferred: the menu attaches directly to the element.
+	delay (uiDelay * 2) -- give the menu time to appear
+	-- Attempt 1: the menu attaches directly to the element in the AX tree.
 	set pickedItem to false
 	tell application "System Events"
 		tell process "Shortcuts"
@@ -259,8 +259,20 @@ try
 			end try
 		end tell
 	end tell
-	-- Fallback: hunt the open menu anywhere in the window tree.
-	if not pickedItem then my deepClick("Repeat Item", uiDelay)
+	-- Attempt 2 (the one that usually works): the menu is open but macOS
+	-- doesn't expose it inside any window, so no element search can see
+	-- it. Open menus respond to TYPE-SELECT: typing an item's name
+	-- highlights it, Return activates it. We type the full "Repeat Item"
+	-- so it can't stop early on "Repeat Index".
+	if not pickedItem then
+		tell application "System Events"
+			tell process "Shortcuts"
+				keystroke "Repeat Item"
+				delay 0.5
+				keystroke return
+			end tell
+		end tell
+	end if
 	delay uiDelay
 on error innerMsg
 	display dialog "Couldn't auto-bind Recipients to Repeat Item. Do it by hand: " & ¬
