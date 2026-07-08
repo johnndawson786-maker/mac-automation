@@ -91,38 +91,35 @@ end try
 try
 	my addAction("Find Contacts", uiDelay)
 
-	-- Click the "Add Filter" button, then open the "Choose" value picker
-	-- and type the group name into its search field.
-	tell application "System Events"
-		tell process "Shortcuts"
-			try
-				my ensureShortcutsFocus()
-				click (first button whose name is "Add Filter")
-				delay uiDelay
-				-- The filter row reads:  Group  is  Choose
-				-- Click the "Choose" element to open the group/contact picker.
-				try
-					click (first UI element of window 1 whose name is "Choose")
-				on error
-					-- Fallback: some builds expose it as a pop-up/menu button.
-					click (first pop up button of window 1)
-				end try
-				delay uiDelay
-				-- The picker has a search field; type the group name to filter
-				-- the list, then Return selects the highlighted match.
-				my ensureShortcutsFocus()
-				keystroke groupName
-				delay (uiDelay * 2) -- let the list filter
-				keystroke return
-				delay uiDelay
-			on error innerMsg
-				-- Non-fatal: the button name or layout may differ by version.
-				display dialog "Heads up: couldn't auto-set the Contacts filter to \"" & groupName & "\". " & ¬
-					"Add it by hand: Find Contacts → Add Filter → Group is → Choose → pick the group." & return & return & ¬
-					"(" & innerMsg & ")" buttons {"Continue"} default button "Continue" with icon caution
-			end try
-		end tell
-	end tell
+	-- Click "Add Filter", then "Choose", then the group row in the popover.
+	-- Uses deepClick(): a DEEP search of the whole accessibility tree —
+	-- earlier versions only searched the top level of the process, which
+	-- is why they failed with "Invalid index" even though the button is
+	-- always visibly there. Deep search is slower (a few seconds per
+	-- click) but actually reaches nested SwiftUI controls.
+	try
+		my ensureShortcutsFocus()
+		my deepClick("Add Filter", uiDelay)
+		delay uiDelay
+		-- The filter row reads:  Group  is  Choose  → open the picker.
+		my deepClick("Choose", uiDelay)
+		delay uiDelay
+		-- In the picker's sidebar, click our group (full name first, then
+		-- a prefix match in case the accessibility label is truncated).
+		try
+			my deepClick(groupName, uiDelay)
+		on error
+			my deepClick("Automation_List", uiDelay)
+		end try
+		delay uiDelay
+		key code 53 -- Escape closes the popover, keeping the selection
+		delay uiDelay
+	on error innerMsg
+		-- Non-fatal: finish this one field by hand if the tree hides it.
+		display dialog "Heads up: couldn't auto-set the Contacts filter to \"" & groupName & "\". " & ¬
+			"Add it by hand: Find Contacts → Add Filter → Group is → Choose → pick the group." & return & return & ¬
+			"(" & innerMsg & ")" buttons {"Continue"} default button "Continue" with icon caution
+	end try
 on error errMsg
 	my failStep("Step 2 – adding Find Contacts", errMsg)
 	return
@@ -236,35 +233,38 @@ end try
 
 
 -- =====================================================================
---  STEP 7b — BEST EFFORT: bind Recipients to the "Repeat Item" variable
---  Clicks the Recipients field of Send Message and types "Repeat Item".
---  On builds where typing surfaces the magic-variable suggestion, Return
---  selects it. On builds where typing only searches contacts, this does
---  nothing harmful — VERIFY the pill reads "Repeat Item" (purple)
---  afterwards, and set it by hand if it doesn't.
+--  STEP 7b — Set the Recipient via the picker popover (deep clicks)
+--  Click path (as seen in the real UI):
+--     Recipients pill → sidebar: our group → first "Imported…" contact
+--     → its "mobile <number>" row → Escape to close.
+--  NOTE: this pins ONE fixed contact as the recipient of the Shortcut.
+--  The looped per-contact sending is done by MassMessageSender / the
+--  master pipeline; the Shortcut is a scaffold you can rewire to the
+--  Repeat Item variable later if you want the loop inside Shortcuts.
 -- =====================================================================
 try
-	tell application "System Events"
-		tell process "Shortcuts"
-			my ensureShortcutsFocus()
-			try
-				click (first UI element of window 1 whose name contains "Recipients")
-				delay uiDelay
-				my ensureShortcutsFocus()
-				keystroke "Repeat Item"
-				delay (uiDelay * 2)
-				keystroke return
-				delay uiDelay
-				key code 53 -- Escape: close any leftover contact-picker popover
-				delay uiDelay
-			on error innerMsg
-				display dialog "Couldn't auto-bind Recipients. Set it by hand: click the " & ¬
-					"Recipients pill in Send Message, type \"Repeat Item\" and pick the purple " & ¬
-					"Repeat Item variable (NOT a person)." & return & return & "(" & innerMsg & ")" ¬
-					buttons {"Continue"} default button "Continue" with icon caution
-			end try
-		end tell
-	end tell
+	my ensureShortcutsFocus()
+	my deepClick("Recipients", uiDelay)
+	delay uiDelay
+	-- Sidebar: pick our group (full name, then truncated-label fallback).
+	try
+		my deepClick(groupName, uiDelay)
+	on error
+		my deepClick("Automation_List", uiDelay)
+	end try
+	delay uiDelay
+	-- First imported contact ("Imported XXXX"), then its mobile number row.
+	my deepClick("Imported", uiDelay)
+	delay uiDelay
+	my deepClick("mobile", uiDelay)
+	delay uiDelay
+	key code 53 -- Escape: close the picker popover
+	delay uiDelay
+on error innerMsg
+	display dialog "Couldn't auto-set the Recipient. Set it by hand: click the " & ¬
+		"Recipients pill in Send Message, pick your Automation_List group, click the " & ¬
+		"contact, then click its mobile number." & return & return & "(" & innerMsg & ")" ¬
+		buttons {"Continue"} default button "Continue" with icon caution
 end try
 
 
@@ -382,6 +382,64 @@ on reorderUp(actionName, moveCount, pauseSec)
 		end tell
 	end tell
 end reorderUp
+
+-- ---------------------------------------------------------------------
+-- deepFind(targetText)
+-- Searches EVERY UI element in EVERY window of the Shortcuts process
+-- (name, description, and value) for one containing targetText.
+-- This is what earlier versions got wrong: they queried only the top
+-- level of the process, so nested SwiftUI controls were never found.
+-- `entire contents` is slow — expect a few seconds per lookup.
+-- ---------------------------------------------------------------------
+on deepFind(targetText)
+	tell application "System Events"
+		tell process "Shortcuts"
+			repeat with w in windows
+				set elems to {}
+				try
+					set elems to entire contents of w
+				end try
+				repeat with e in elems
+					try
+						set n to ""
+						try
+							set n to (name of e) as string
+						end try
+						if n contains targetText then return (contents of e)
+						set d to ""
+						try
+							set d to (description of e) as string
+						end try
+						if d contains targetText then return (contents of e)
+						set v to ""
+						try
+							set v to (value of e) as string
+						end try
+						if v contains targetText then return (contents of e)
+					end try
+				end repeat
+			end repeat
+		end tell
+	end tell
+	error "No UI element matching \"" & targetText & "\" found in any Shortcuts window."
+end deepFind
+
+-- ---------------------------------------------------------------------
+-- deepClick(targetText, pauseSec)
+-- deepFind + click (falling back to the AXPress accessibility action,
+-- which works on elements that don't respond to a plain click).
+-- ---------------------------------------------------------------------
+on deepClick(targetText, pauseSec)
+	set theElem to my deepFind(targetText)
+	tell application "System Events"
+		try
+			click theElem
+		on error
+			perform action "AXPress" of theElem
+		end try
+	end tell
+	delay pauseSec
+end deepClick
 
 -- ---------------------------------------------------------------------
 -- ensureShortcutsFocus()

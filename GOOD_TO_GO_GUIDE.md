@@ -1,19 +1,33 @@
 # Good To Go — One-Click Contact Import + Rotating Mass Messaging
 
-## ⭐ The easy way: `MasterAutomation.applescript`
+## Two master scripts — pick one
 
-One script does **everything** in order — import contacts, then send —
-with **multiple messages that rotate across your contacts**.
+| Master script | What it runs | When to use |
+|---------------|--------------|-------------|
+| `MasterPipeline.applescript` | The full 3-stage chain: **ContactImporter → MassMessageSetup (builds the Shortcut, auto-clicks filter + recipient) → MassMessageSender** | You want the Shortcut built in the Shortcuts app too |
+| `MasterAutomation.applescript` | Import + send directly (no Shortcuts app), with **multiple messages rotating across contacts** from `messages.txt` | You just want messages sent, incl. 10-messages-to-100-contacts rotation |
+
+Both need the data files next to them in the same folder.
 
 | File | What it is |
 |------|-----------|
-| `MasterAutomation.applescript` | **Run this.** Imports `contacts.csv` → builds the group → reads `messages.txt` → sends, rotating messages across contacts → summary |
+| `MasterPipeline.applescript` | Runs all three scripts in order (see above) |
+| `MasterAutomation.applescript` | Import + rotating multi-message send, self-contained |
 | `contacts.csv` | Your numbers, one per line (or `First,Last,Number`) |
-| `messages.txt` | Your messages, separated by a line containing only `===` |
+| `messages.txt` | Your messages, separated by a line containing only `===` (used by MasterAutomation) |
 | `START_HERE.md` | This guide |
-| `ContactImporter.applescript` | *(Optional)* just the import step, standalone |
-| `MassMessageSender.applescript` | *(Optional)* just the send step (single message), standalone |
-| `MassMessageSetup.applescript` | *(Legacy — ignore)* old Shortcuts-app builder |
+| `ContactImporter.applescript` | Stage 1 — import contacts |
+| `MassMessageSetup.applescript` | Stage 2 — build the Shortcut; deep-searches the UI to click Add Filter → Group → your list, and Recipients → your list → first contact → mobile number |
+| `MassMessageSender.applescript` | Stage 3 — the actual looped sending via Messages |
+
+### Notes on Stage 2 (Shortcut building)
+- **Don't touch the keyboard/mouse while it runs.** It's driving the UI.
+- The deep accessibility search takes a few seconds per click — be patient.
+- If Shortcuts still hides a control from automation, you get a dialog telling
+  you the exact manual click to finish; the pipeline continues either way, and
+  Stage 3 does the real sending regardless.
+- The Recipient it pins is the **first contact** of your group (fixed). For
+  in-Shortcut looping, rewire Recipients to the **Repeat Item** variable by hand.
 
 ---
 
