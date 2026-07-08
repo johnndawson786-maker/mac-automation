@@ -112,7 +112,7 @@ try
 			my deepClick("Automation_List", uiDelay)
 		end try
 		delay uiDelay
-		key code 53 -- Escape closes the popover, keeping the selection
+		tell application "System Events" to key code 53 -- Escape closes the popover, keeping the selection
 		delay uiDelay
 	on error innerMsg
 		-- Non-fatal: finish this one field by hand if the tree hides it.
@@ -258,7 +258,7 @@ try
 	delay uiDelay
 	my deepClick("mobile", uiDelay)
 	delay uiDelay
-	key code 53 -- Escape: close the picker popover
+	tell application "System Events" to key code 53 -- Escape: close the picker popover
 	delay uiDelay
 on error innerMsg
 	display dialog "Couldn't auto-set the Recipient. Set it by hand: click the " & ¬
