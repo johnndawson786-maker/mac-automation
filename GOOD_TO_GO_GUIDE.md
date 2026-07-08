@@ -1,93 +1,105 @@
-# Good To Go — Fully Automated Contact Import + Mass Messaging
+# Good To Go — One-Click Contact Import + Rotating Mass Messaging
 
-Two scripts. Run each once. **No manual steps inside any app, no Shortcuts
-fiddling.**
+## ⭐ The easy way: `MasterAutomation.applescript`
 
-| File | What it does |
-|------|--------------|
-| `ContactImporter.applescript` | Imports numbers from `contacts.csv` into a Contacts group `Automation_List_<today>` and records the group name |
-| `MassMessageSender.applescript` | **⭐ The one you want.** Reads that group and sends your message to every member automatically, one at a time, via the Messages app |
-| `contacts.csv` | Your numbers — currently `8585876735` and `7876730373`, one per line |
-| `message_content.txt` | A place to draft your message |
-| `MassMessageSetup.applescript` | *(Legacy — ignore.)* The old Shortcuts-builder. See "Why not Shortcuts" below |
+One script does **everything** in order — import contacts, then send —
+with **multiple messages that rotate across your contacts**.
+
+| File | What it is |
+|------|-----------|
+| `MasterAutomation.applescript` | **Run this.** Imports `contacts.csv` → builds the group → reads `messages.txt` → sends, rotating messages across contacts → summary |
+| `contacts.csv` | Your numbers, one per line (or `First,Last,Number`) |
+| `messages.txt` | Your messages, separated by a line containing only `===` |
 | `START_HERE.md` | This guide |
+| `ContactImporter.applescript` | *(Optional)* just the import step, standalone |
+| `MassMessageSender.applescript` | *(Optional)* just the send step (single message), standalone |
+| `MassMessageSetup.applescript` | *(Legacy — ignore)* old Shortcuts-app builder |
 
 ---
 
-## Why this is different (please read once)
+## How the message rotation works
 
-Earlier versions tried to build a **Shortcut** in the Shortcuts app by
-automating its UI. That path **cannot be fully automated** — the Shortcuts app
-doesn't expose its action editor to macOS automation, so setting the group
-filter, binding the recipient, and renaming always fail ("Invalid index").
-That's a limitation of Apple's app, not something any script can fix.
+Messages in `messages.txt` are assigned to contacts **in order, cycling**:
 
-`MassMessageSender.applescript` skips Shortcuts entirely and talks to the
-**Messages** app directly. That IS fully scriptable — so it needs **zero manual
-finishing**. Import, then send. Done.
+```
+contact 1  → message 1
+contact 2  → message 2
+contact 3  → message 3
+…
+contact N  → message N
+contact N+1 → message 1   (wraps around)
+```
+
+So with **10 messages and 100 contacts**, each message goes to 10 people
+(every 10th contact). Add or remove messages freely — the rotation adjusts.
+
+### `messages.txt` format
+Separate each message with a line that is **just** `===`. Messages may span
+multiple lines. Example:
+
+```
+Hi! First message here.
+Can be multiple lines.
+===
+Second message.
+===
+Third message.
+```
 
 ---
 
 ## One-time permissions
 
 **System Settings → Privacy & Security:**
-- **Accessibility** → enable **Script Editor** (use **+** and add
-  `/System/Applications/Utilities/Script Editor.app` if it's missing)
+- **Accessibility** → enable **Script Editor** (+ button → add
+  `/System/Applications/Utilities/Script Editor.app` if missing)
 - **Contacts** → enable **Script Editor**
 - **Automation** → allow Script Editor to control **Contacts** and **Messages**
 
-Also: open **Messages**, make sure it's signed in (Messages → Settings →
-iMessage). For SMS to non-iMessage numbers, your iPhone must be paired with
-**Text Message Forwarding** on.
-
-Click **OK** on any permission pop-ups the first time you run.
+Open **Messages** and make sure it's signed in (Messages → Settings → iMessage).
+For SMS to non-iMessage numbers, pair your iPhone with **Text Message
+Forwarding** on.
 
 ---
 
-## Step 1 — Import the contacts (run once)
+## Run it
 
-1. Open `ContactImporter.applescript` in Script Editor → **Run** (▶).
-2. Choose `contacts.csv` from this folder.
-3. Your two numbers become contacts `Imported 6735` and `Imported 0373` in the
-   group `Automation_List_<today>`. (Want real names? Edit `contacts.csv` lines
-   to `FirstName,LastName,Number` first.)
+1. Keep `MasterAutomation.applescript`, `contacts.csv`, and `messages.txt`
+   **in the same folder**.
+2. Open `MasterAutomation.applescript` in Script Editor → **Run** (▶).
+   (It finds the two files next to itself; if it can't, it asks you to pick
+   the folder.)
+3. It imports the contacts, then shows a confirmation with the recipient count,
+   how many messages will rotate, and a preview of message 1.
+4. Click **Send Now**. It sends to everyone automatically, one at a time, with
+   a 2-second gap, then shows a full summary.
 
-## Step 2 — Send the messages (run once — this is the whole thing)
-
-1. Open `MassMessageSender.applescript` in Script Editor → **Run** (▶).
-2. It shows how many recipients it found and asks for your message
-   (pre-filled — edit it right there in the dialog).
-3. It asks you to confirm, then sends to **every contact automatically**, one
-   at a time, with a 2-second gap.
-4. A summary tells you how many sent and which (if any) failed.
-
-That's it. You do **not** run it once per person and you do **not** touch
-Messages — the script loops through the whole group by itself.
+That's the whole thing — one run, no manual steps, no Shortcuts app.
 
 ---
 
-## ⚠️ Before you send to a real list
-
-- **Test first:** put ONLY your own number in `contacts.csv`, run both scripts,
-  and confirm you receive the message.
-- **Country codes:** the two included numbers have no `+` prefix. If a send
-  fails, edit `contacts.csv` to full international format (e.g. `+18585876735`)
-  and re-run Step 1.
-- **Don't spam:** only message people expecting to hear from you. Apple and
-  carriers rate-limit or block accounts that send unsolicited bulk messages.
+## ⚠️ Before a real run
+- **Test first:** put ONLY your own number in `contacts.csv` and one line in
+  `messages.txt`, run it, confirm you receive it.
+- **Country codes:** numbers without `+` use your region default. If sends
+  fail, use full international format (e.g. `+18585876735`).
+- **Don't spam:** only message people expecting to hear from you — Apple and
+  carriers block accounts that send unsolicited bulk messages.
 
 ---
 
-## Customising `MassMessageSender.applescript`
-
+## Customising `MasterAutomation.applescript`
 Edit the CONFIGURATION block at the top:
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
-| `defaultMessage` | `"Hello from automation …"` | Text pre-filled in the prompt |
-| `delayBetween` | `2` | Seconds between each send |
+| `contactsFileName` | `"contacts.csv"` | Input contact file name |
+| `messagesFileName` | `"messages.txt"` | Input message file name |
+| `csvDelimiter` | `","` | Field separator in contacts.csv |
+| `delayBetween` | `2` | Seconds between sends |
 | `useIMessageOnly` | `false` | `true` = iMessage only, no SMS fallback |
 | `askBeforeSending` | `true` | `false` = skip the confirm dialog |
+| `groupPrefix` | `"Automation_List_"` | Group name prefix (date appended) |
 
 Change the date format in the `formatDate()` handler at the bottom.
 
@@ -97,19 +109,9 @@ Change the date format in the `formatDate()` handler at the bottom.
 
 | Problem | Fix |
 |---------|-----|
-| "not authorized" / script won't run | Grant Accessibility + Automation + Contacts (permissions above) |
-| "No Contacts group named…" | Run `ContactImporter.applescript` first |
-| All sends fail | Messages not signed in, or numbers unreachable — check Messages, try `+1…` format |
-| Some fail | Those numbers aren't on iMessage and SMS forwarding isn't set up — see the failed list in the summary |
-| Nothing happens in Messages | Automation permission for Messages not granted |
-
----
-
-## Why not the Shortcuts version?
-
-`MassMessageSetup.applescript` is kept only for reference. It builds the
-Shortcut's actions fine but **cannot** auto-configure the group filter,
-recipient binding, or name, because Shortcuts blocks automation of those
-controls. If you specifically want a reusable Shortcut, run it, then finish
-those three fields by hand (filter, Recipients = Repeat Item, name). For actual
-hands-free sending, use `MassMessageSender.applescript` instead.
+| "not authorized" / won't run | Grant Accessibility + Contacts + Automation (above) |
+| "Couldn't read contacts.csv" | Keep it in the same folder as the script, or pick the folder when asked |
+| "No messages found" | `messages.txt` empty or missing `===` separators |
+| All sends fail | Messages not signed in, or numbers unreachable — try `+…` format |
+| Some fail | Those numbers aren't iMessage and SMS forwarding isn't set up — see the failed list |
+| Wrong message to wrong person | Remember it's rotation by order — reorder `contacts.csv`/`messages.txt` to change assignment |

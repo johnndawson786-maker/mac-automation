@@ -1,0 +1,7 @@
+Hi! This is message number one from the automation. 👋
+===
+Hello there — message number two here. Hope you're well!
+===
+Message three: just checking in.
+===
+This is the fourth message in the rotation.
